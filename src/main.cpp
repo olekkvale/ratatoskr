@@ -41,6 +41,18 @@ static void exportDevice(sdbus::IConnection& conn, ManagedDevice& dev) {
                 if (!b) return {-1, false};
                 return {b->percent, b->charging};
             }),
+        sdbus::registerMethod("GetBatteryPercent")
+            .implementedAs([&dev]() -> int32_t {
+                if (!dev.connected) return -1;
+                auto b = dev.driver->getBattery(dev.hid);
+                return b ? b->percent : -1;
+            }),
+        sdbus::registerMethod("GetBatteryCharging")
+            .implementedAs([&dev]() -> int32_t {
+                if (!dev.connected) return 0;
+                auto b = dev.driver->getBattery(dev.hid);
+                return (b && b->charging) ? 1 : 0;
+            }),
         sdbus::registerMethod("GetChatmix")
             .implementedAs([&dev]() -> int32_t {
                 if (!dev.connected) return -1;

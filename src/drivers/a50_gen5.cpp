@@ -74,8 +74,9 @@ void A50Gen5Driver::handleSpontaneous(const uint8_t* data, size_t len) {
 
     uint8_t cmd1 = data[4];
 
-    // Mic mute uses byte[2]=0x07 as identifier instead of cmd1
-    if (data[2] == 0x07 && len >= 10) {
+    // Mic mute: byte[2]=0x07 AND cmd1=0x0c, byte[9] bit0: 1=on, 0=muted
+    // (byte[2]=0x07 alone is not unique — sidetone spontan also has len=7)
+    if (data[2] == 0x07 && cmd1 == 0x0c && len >= 10) {
         cache_.hw_mic_muted.store((data[9] & 0x01) == 0 ? 1 : 0);
         emitEvent(Event::MicMute);
         return;
@@ -91,7 +92,7 @@ void A50Gen5Driver::handleSpontaneous(const uint8_t* data, size_t len) {
             cache_.volume.store(data[6]);
             emitEvent(Event::Volume);
             break;
-        case 0x04: // MixAmp: byte[6]=level (0-12)
+        case 0x0a: // MixAmp: byte[6]=level (0-12), same cmd1 as GET/SET
             cache_.mixamp.store(data[6]);
             emitEvent(Event::Mixamp);
             break;
@@ -120,9 +121,11 @@ bool A50Gen5Driver::sendAndReceive(HidDevice& device,
                                     const uint8_t* cmd, size_t cmd_len,
                                     uint8_t* response, size_t resp_len,
                                     const uint8_t* data, size_t data_len) {
-    // Pause listener so it doesn't steal our response
+    // Pause listener so it doesn't steal our response.
+    // Must wait longer than the listener's read timeout (200ms) to ensure
+    // any in-flight read has completed before we send our command.
     listener_paused_.store(true);
-    std::this_thread::sleep_for(std::chrono::milliseconds(15));
+    std::this_thread::sleep_for(std::chrono::milliseconds(250));
 
     if (!sendCommandLocked(device, cmd, cmd_len, data, data_len)) {
         listener_paused_.store(false);
@@ -405,7 +408,7 @@ std::string A50Gen5Driver::getBaseMac(HidDevice& device) {
 bool A50Gen5Driver::sendMetadata(HidDevice& device, uint8_t type,
                                   uint8_t* response, size_t resp_len) {
     listener_paused_.store(true);
-    std::this_thread::sleep_for(std::chrono::milliseconds(15));
+    std::this_thread::sleep_for(std::chrono::milliseconds(250));
 
     std::array<uint8_t, MSG_SIZE + 1> buf{};
     buf[0] = REPORT_ID;
@@ -546,9 +549,15 @@ bool A50Gen5Driver::setEqualizerPreset(HidDevice& device, uint8_t preset) {
 
 bool A50Gen5Driver::setMicVolume(HidDevice& device, uint8_t volume) {
     // Device range: 0-32
+    // CMD_SET_MIC_VOL and CMD_SET_MIC_MUTE share the same HID command (0c 6b).
+    // Must preserve mute state when changing volume, otherwise mute is reset to 0.
     uint8_t clamped = std::min(volume, uint8_t(32));
+    int sw_mute = cache_.sw_mic_muted.load();
+    uint8_t mute_byte = (sw_mute > 0) ? 0x01 : 0x00;
+
     std::array<uint8_t, 11> data{};
-    data[1] = 0x20; // Stream volume max (unchanged)
+    data[1] = 0x20; // Stream volume max
+    data[2] = mute_byte;
     data[4] = clamped;
 
     return sendCommand(device, CMD_SET_MIC_VOL.data(), CMD_SET_MIC_VOL.size(),
@@ -591,25 +600,36 @@ bool A50Gen5Driver::setMixamp(HidDevice& device, uint8_t level) {
 // ========================================================================
 
 bool A50Gen5Driver::setMicMute(HidDevice& device, bool mute) {
-    // 0c 6b: byte[8]=0x00 unmute, 0x01 mute
-    // Full frame includes routing data — only set mute byte, rest zeros
+    // CMD_SET_MIC_MUTE and CMD_SET_MIC_VOL share the same HID command (0c 6b).
+    // Must preserve mic volume when changing mute, otherwise volume is reset to 0.
+    std::array<uint8_t, MSG_SIZE> response{};
+    int mic_vol = 0;
+    if (sendAndReceive(device, CMD_GET_MIC_VOL.data(), CMD_GET_MIC_VOL.size(),
+                       response.data(), response.size())) {
+        mic_vol = response[9];
+    }
+
     std::array<uint8_t, 11> data{};
-    data[1] = 0x20; // stream volume max (unchanged)
+    data[1] = 0x20; // stream volume max
     data[2] = mute ? 0x01 : 0x00;
+    data[4] = static_cast<uint8_t>(mic_vol);
+
+    cache_.sw_mic_muted.store(mute ? 1 : 0);
     return sendCommand(device, CMD_SET_MIC_MUTE.data(), CMD_SET_MIC_MUTE.size(),
                        data.data(), data.size());
 }
 
 bool A50Gen5Driver::setCustomEqualizer(HidDevice& device, uint8_t type,
                                         const uint8_t* band_data, size_t band_len) {
-    // 0d 2b: byte[6]=type (0x00=mic, 0x01=headphone), byte[7]=0x03
-    // byte[8..57] = 10 bands × 5 bytes = 50 bytes
+    // 0d 2b: byte[6]=type, byte[7]=0x03, byte[8]=0x00 (spacer)
+    // byte[9..58] = 10 bands × 5 bytes [freq_hi, freq_lo, Q, 0x00, gain]
     if (band_len != 50) return false;
 
-    std::array<uint8_t, 52> data{};
-    data[0] = type;  // 0x00=mic, 0x01=headphone
+    std::array<uint8_t, 53> data{};
+    data[0] = type;   // 0x00=mic, 0x01=headphone
     data[1] = 0x03;
-    std::memcpy(&data[2], band_data, 50);
+    data[2] = 0x00;   // spacer (matches G HUB frame format)
+    std::memcpy(&data[3], band_data, 50);
 
     return sendCommand(device, CMD_SET_CUSTOM_EQ.data(), CMD_SET_CUSTOM_EQ.size(),
                        data.data(), data.size());
