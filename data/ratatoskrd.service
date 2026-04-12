@@ -1,0 +1,14 @@
+[Unit]
+Description=Ratatoskr Hardware Control Daemon
+After=dbus.service
+Wants=dbus.service
+
+[Service]
+Type=dbus
+BusName=org.ratatoskr
+ExecStart=/usr/bin/ratatoskrd
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

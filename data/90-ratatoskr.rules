@@ -1,0 +1,8 @@
+# Logitech A50 Gen 5 basestation
+KERNEL=="hidraw*", ATTRS{idVendor}=="046d", ATTRS{idProduct}=="0b1c", MODE="0660", TAG+="uaccess"
+
+# Keychron Link dongle (2.4 GHz)
+KERNEL=="hidraw*", ATTRS{idVendor}=="3434", ATTRS{idProduct}=="d030", MODE="0660", TAG+="uaccess"
+
+# Keychron Q6 HE (USB wired)
+KERNEL=="hidraw*", ATTRS{idVendor}=="3434", ATTRS{idProduct}=="0b61", MODE="0660", TAG+="uaccess"
