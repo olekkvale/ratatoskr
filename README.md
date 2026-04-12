@@ -2,7 +2,8 @@
 
 Open source hardware control for Linux -- headsets, keyboards, and more.
 
-Ratatoskr is a daemon that communicates with USB HID devices and exposes control via D-Bus. Named after the squirrel that carries messages between worlds on Yggdrasil.
+Ratatoskr is a daemon that communicates with USB HID devices and exposes control via D-Bus. 
+Named after the squirrel that carries messages between worlds on Yggdrasil.
 
 ## Supported devices
 
