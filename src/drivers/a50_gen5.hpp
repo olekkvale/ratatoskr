@@ -79,6 +79,18 @@ public:
     bool factoryReset(HidDevice& device, const std::string& serial);
     bool startBluetoothPairing(HidDevice& device);
 
+    /// Stream routing: 5 channels (stream master + mic out + game + bluetooth + voice)
+    /// Each channel: volume 0-32, mute 0/1
+    struct RoutingConfig {
+        uint8_t stream_vol = 26;  bool stream_mute = false;
+        uint8_t mic_vol = 16;    bool mic_mute = true;
+        uint8_t game_vol = 16;   bool game_mute = false;
+        uint8_t bt_vol = 16;     bool bt_mute = true;
+        uint8_t voice_vol = 16;  bool voice_mute = false;
+    };
+    RoutingConfig getRouting(HidDevice& device);
+    bool setRouting(HidDevice& device, const RoutingConfig& cfg);
+
     /// Cached state from spontaneous reports
     struct Cache {
         std::atomic<int> battery_percent{-1};
@@ -140,6 +152,8 @@ private:
     static constexpr std::array<uint8_t, 4> CMD_SET_EQ_SAVE       {0x05, 0x00, 0x0d, 0x1b};  // save active EQ
     static constexpr std::array<uint8_t, 4> CMD_SET_FACTORY_RESET {0x10, 0x00, 0x04, 0x4b};  // byte[6..17]=serial
     static constexpr std::array<uint8_t, 4> CMD_SET_BT_PAIR       {0x04, 0x00, 0x0b, 0x1b};  // trigger BT search
+    static constexpr std::array<uint8_t, 4> CMD_GET_ROUTING       {0x03, 0x00, 0x0c, 0x6e};  // stream routing GET
+    static constexpr std::array<uint8_t, 4> CMD_SET_ROUTING       {0x13, 0x00, 0x0c, 0x6e};  // stream routing SET (19 bytes)
 
     Cache cache_;
     EventCallback event_cb_;

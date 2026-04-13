@@ -665,4 +665,56 @@ bool A50Gen5Driver::startBluetoothPairing(HidDevice& device) {
                        data.data(), data.size());
 }
 
+// ========================================================================
+// Stream Routing (0c 6e)
+// ========================================================================
+
+A50Gen5Driver::RoutingConfig A50Gen5Driver::getRouting(HidDevice& device) {
+    RoutingConfig cfg;
+    std::array<uint8_t, MSG_SIZE> response{};
+    if (!sendAndReceive(device, CMD_GET_ROUTING.data(), CMD_GET_ROUTING.size(),
+                        response.data(), response.size())) {
+        return cfg;
+    }
+    // Response matches SET frame: byte[6]=0x00, byte[7]=stream_vol, byte[8]=stream_mute,
+    // byte[9]=4 (count), then 4 × [id, vol, mute]
+    cfg.stream_vol = response[7];
+    cfg.stream_mute = (response[8] != 0);
+    int count = response[9];
+    for (int i = 0; i < count && i < 4; i++) {
+        int off = 10 + i * 3;
+        uint8_t id = response[off];
+        uint8_t vol = response[off + 1];
+        bool mute = (response[off + 2] != 0);
+        switch (id) {
+            case 0: cfg.mic_vol = vol;   cfg.mic_mute = mute;   break;
+            case 1: cfg.game_vol = vol;  cfg.game_mute = mute;  break;
+            case 2: cfg.bt_vol = vol;    cfg.bt_mute = mute;    break;
+            case 3: cfg.voice_vol = vol; cfg.voice_mute = mute; break;
+        }
+    }
+    return cfg;
+}
+
+bool A50Gen5Driver::setRouting(HidDevice& device, const RoutingConfig& cfg) {
+    // Frame: byte[6]=0x00, byte[7]=stream_vol, byte[8]=stream_mute,
+    // byte[9]=4, then 4 × [channel_id, vol, mute]
+    std::array<uint8_t, 16> data{};
+    data[0] = 0x00;  // channel selector
+    data[1] = std::min(cfg.stream_vol, uint8_t(32));
+    data[2] = cfg.stream_mute ? 1 : 0;
+    data[3] = 4;     // sub-channel count
+    // Ch 0: Mic out
+    data[4] = 0;  data[5] = std::min(cfg.mic_vol, uint8_t(32));   data[6] = cfg.mic_mute ? 1 : 0;
+    // Ch 1: Game
+    data[7] = 1;  data[8] = std::min(cfg.game_vol, uint8_t(32));  data[9] = cfg.game_mute ? 1 : 0;
+    // Ch 2: Bluetooth
+    data[10] = 2; data[11] = std::min(cfg.bt_vol, uint8_t(32));   data[12] = cfg.bt_mute ? 1 : 0;
+    // Ch 3: Voice
+    data[13] = 3; data[14] = std::min(cfg.voice_vol, uint8_t(32)); data[15] = cfg.voice_mute ? 1 : 0;
+
+    return sendCommand(device, CMD_SET_ROUTING.data(), CMD_SET_ROUTING.size(),
+                       data.data(), data.size());
+}
+
 } // namespace ratatoskr

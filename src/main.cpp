@@ -238,6 +238,31 @@ static void exportDevice(sdbus::IConnection& conn, ManagedDevice& dev) {
             sdbus::registerMethod("StartBluetoothPairing")
                 .implementedAs([&dev, a50]() -> bool {
                     return dev.connected && a50->startBluetoothPairing(dev.hid);
+                }),
+            sdbus::registerMethod("GetRouting")
+                .implementedAs([&dev, a50]() -> sdbus::Struct<int32_t, bool, int32_t, bool, int32_t, bool, int32_t, bool, int32_t, bool> {
+                    if (!dev.connected) return {16, false, 16, true, 16, false, 16, true, 16, false};
+                    auto cfg = a50->getRouting(dev.hid);
+                    return {cfg.stream_vol, cfg.stream_mute,
+                            cfg.mic_vol, cfg.mic_mute,
+                            cfg.game_vol, cfg.game_mute,
+                            cfg.bt_vol, cfg.bt_mute,
+                            cfg.voice_vol, cfg.voice_mute};
+                }),
+            sdbus::registerMethod("SetRouting")
+                .implementedAs([&dev, a50](int32_t streamVol, bool streamMute,
+                                           int32_t micVol, bool micMute,
+                                           int32_t gameVol, bool gameMute,
+                                           int32_t btVol, bool btMute,
+                                           int32_t voiceVol, bool voiceMute) -> bool {
+                    if (!dev.connected) return false;
+                    A50Gen5Driver::RoutingConfig cfg;
+                    cfg.stream_vol = streamVol; cfg.stream_mute = streamMute;
+                    cfg.mic_vol = micVol;       cfg.mic_mute = micMute;
+                    cfg.game_vol = gameVol;     cfg.game_mute = gameMute;
+                    cfg.bt_vol = btVol;         cfg.bt_mute = btMute;
+                    cfg.voice_vol = voiceVol;   cfg.voice_mute = voiceMute;
+                    return a50->setRouting(dev.hid, cfg);
                 })
         ).forInterface(iface);
     }
