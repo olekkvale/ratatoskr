@@ -33,11 +33,15 @@ make
 ## Installation
 
 ```bash
+# From project root (not inside build/)
 sudo cmake --install build
 
-# Enable and start
+# Enable and start daemon
+sudo systemctl daemon-reload
 sudo systemctl enable --now ratatoskrd
 ```
+
+Installs to `/usr/local` by default. For distro packaging, use `-DCMAKE_INSTALL_PREFIX=/usr`.
 
 Files installed:
 - `/usr/bin/ratatoskrd` -- daemon binary

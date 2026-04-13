@@ -6,7 +6,7 @@ Wants=dbus.service
 [Service]
 Type=dbus
 BusName=org.ratatoskr
-ExecStart=/usr/bin/ratatoskrd
+ExecStart=/usr/local/bin/ratatoskrd
 Restart=on-failure
 RestartSec=5
 
