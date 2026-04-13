@@ -8,7 +8,7 @@ Named after the squirrel that carries messages between worlds on Yggdrasil.
 
 ## Supported devices
 
-- **Logitech Astro A50 Gen 5** -- 22 GET + 15 SET + 6 real-time signals
+- **Logitech Astro A50 Gen 5** -- 24 GET + 15 SET + 6 real-time signals
 
 ## Features
 
@@ -67,6 +67,8 @@ dbus-monitor --system "type='signal',sender='org.ratatoskr'"
 | Method | Return | Description |
 |--------|--------|-------------|
 | GetBattery | (int32, bool) | Percent + charging |
+| GetBatteryPercent | int32 | Percent only |
+| GetBatteryCharging | int32 | 1=charging, 0=not |
 | GetVolume | int32 | 0-31 |
 | GetSidetone | int32 | 0-6 |
 | GetMicMute | bool | Flip-to-mute state |
@@ -79,7 +81,6 @@ dbus-monitor --system "type='signal',sender='org.ratatoskr'"
 | GetSleepMode | int32 | 0/15/30/60 min |
 | GetNotificationSound | int32 | 0/1/2 |
 | GetLedBrightness | int32 | 0-100 |
-| GetMicVolume | int32 | 0-32 |
 | GetBaseMac | string | BT MAC address |
 | GetBluetoothStatus | bool | Connected |
 | GetBluetoothName | string | BT device name |
@@ -88,6 +89,7 @@ dbus-monitor --system "type='signal',sender='org.ratatoskr'"
 | GetDeviceInfo | string | HW ID + build date |
 | GetProtocolId | string | "ah v15" |
 | GetSerialMeta | string | Serial via metadata |
+| GetRouting | (i,b,i,b,i,b,i,b,i,b) | Stream routing: 5 channels × (vol, mute) |
 
 ### SET methods
 
@@ -95,7 +97,6 @@ dbus-monitor --system "type='signal',sender='org.ratatoskr'"
 |--------|------|-------------|
 | SetSidetone | int32 | 0-6 |
 | SetVolume | int32 | 0-21 |
-| SetMicVolume | int32 | 0-32 |
 | SetMixamp | int32 | 0-12 |
 | SetEqualizerPreset | int32 | 0=Standard, 1=Gaming, 2=Media |
 | SetNoiseGate | int32 | 0=Home, 1=Night, 2=Tournament |
@@ -108,6 +109,7 @@ dbus-monitor --system "type='signal',sender='org.ratatoskr'"
 | SaveEqualizerPreset | -- | Save to headset |
 | FactoryReset | string | Serial number (12 chars) |
 | StartBluetoothPairing | -- | Trigger BT search |
+| SetRouting | i,b,i,b,i,b,i,b,i,b | Stream routing: stream/mic/game/bt/voice × (vol, mute) |
 
 ### Signals
 

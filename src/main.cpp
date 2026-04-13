@@ -120,10 +120,6 @@ static void exportDevice(sdbus::IConnection& conn, ManagedDevice& dev) {
             .implementedAs([&dev](int32_t volume) -> bool {
                 return dev.connected && dev.driver->setVolume(dev.hid, static_cast<uint8_t>(volume));
             }),
-        sdbus::registerMethod("SetMicVolume")
-            .implementedAs([&dev](int32_t volume) -> bool {
-                return dev.connected && dev.driver->setMicVolume(dev.hid, static_cast<uint8_t>(volume));
-            }),
         sdbus::registerMethod("SetMixamp")
             .implementedAs([&dev](int32_t level) -> bool {
                 return dev.connected && dev.driver->setMixamp(dev.hid, static_cast<uint8_t>(level));
@@ -182,11 +178,6 @@ static void exportDevice(sdbus::IConnection& conn, ManagedDevice& dev) {
                 .implementedAs([&dev, a50]() -> int32_t {
                     if (!dev.connected) return -1;
                     return a50->getLedBrightness(dev.hid);
-                }),
-            sdbus::registerMethod("GetMicVolume")
-                .implementedAs([&dev, a50]() -> int32_t {
-                    if (!dev.connected) return -1;
-                    return a50->getMicVolume(dev.hid);
                 }),
             sdbus::registerMethod("GetBaseMac")
                 .implementedAs([&dev, a50]() -> std::string {
