@@ -133,7 +133,7 @@ private:
     static constexpr std::array<uint8_t, 4> CMD_GET_SLEEP     {0x03, 0x00, 0x07, 0x0b};  // 07 0b: byte[6] = 0/15/30/60
     static constexpr std::array<uint8_t, 4> CMD_GET_NOTIF     {0x03, 0x00, 0x10, 0x0b};  // 10 0b: byte[6] = 0/1/2
     static constexpr std::array<uint8_t, 4> CMD_GET_LED       {0x03, 0x00, 0x0f, 0x0b};  // 0f 0b: byte[6] = 0-100
-    static constexpr std::array<uint8_t, 4> CMD_GET_MIC_VOL   {0x03, 0x00, 0x0c, 0x2b};  // 0c 2b: byte[9] = 0-32
+    static constexpr std::array<uint8_t, 4> CMD_GET_MIC_VOL   {0x03, 0x00, 0x0c, 0x2b};  // 0c 2b: byte[9] bit0 = HW flip-to-mute (0=muted, 1=on); upper bits = mic volume
     static constexpr std::array<uint8_t, 4> CMD_GET_BASE_MAC  {0x03, 0x00, 0x0b, 0x6b};  // 0b 6b: byte[6..11] = MAC
 
     // SET commands

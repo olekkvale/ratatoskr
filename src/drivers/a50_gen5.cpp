@@ -221,16 +221,23 @@ std::optional<SidetoneInfo> A50Gen5Driver::getSidetone(HidDevice& device) {
 }
 
 std::optional<MicMuteInfo> A50Gen5Driver::getMicMute(HidDevice& device) {
-    // SW mute via 0c 3b byte[9]: 0=unmute, 1=mute
-    // Hardware flip-to-mute cached from spontaneous report (byte[2]=0x07)
+    // HW flip-to-mute via 0c 2b byte[9] bit 0 (0=muted, 1=on) — queryable!
+    //   Spontaneous reports (0c 00) still push transitions in real-time, but
+    //   the query lets us know state on connection without waiting for a flip.
+    // SW mute via 0c 3b byte[9]: 0=unmute, 1=mute (separate mechanism)
     std::array<uint8_t, MSG_SIZE> response{};
+
+    if (sendAndReceive(device, CMD_GET_MIC_VOL.data(), CMD_GET_MIC_VOL.size(),
+                       response.data(), response.size())) {
+        cache_.hw_mic_muted.store((response[9] & 0x01) == 0 ? 1 : 0);
+    }
 
     if (sendAndReceive(device, CMD_GET_SW_MUTE.data(), CMD_GET_SW_MUTE.size(),
                        response.data(), response.size())) {
         cache_.sw_mic_muted.store(response[9] != 0 ? 1 : 0);
     }
 
-    // Prefer hardware flip-to-mute (spontaneous), fall back to SW mute
+    // Prefer hardware flip-to-mute, fall back to SW mute
     int hw = cache_.hw_mic_muted.load();
     if (hw >= 0) return MicMuteInfo{.muted = (hw != 0)};
 
