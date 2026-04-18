@@ -10,6 +10,10 @@ Named after the squirrel that carries messages between worlds on Yggdrasil.
 
 - **Logitech Astro A50 Gen 5** -- 24 GET + 15 SET + 6 real-time signals
 
+### Planned (udev rules staged, driver not yet implemented)
+
+- **Keychron Q6 HE** (USB wired + 2.4 GHz dongle)
+
 ## Features
 
 - D-Bus API on system bus (`org.ratatoskr.Device`)
@@ -33,7 +37,9 @@ make
 ## Installation
 
 ```bash
-# From project root (not inside build/)
+# Recommended: use /usr prefix for consistent paths
+cmake -B build -DCMAKE_INSTALL_PREFIX=/usr
+cmake --build build
 sudo cmake --install build
 
 # Enable and start daemon
@@ -41,13 +47,23 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now ratatoskrd
 ```
 
-Installs to `/usr/local` by default. For distro packaging, use `-DCMAKE_INSTALL_PREFIX=/usr`.
+Binary path follows `CMAKE_INSTALL_PREFIX`. System integration files (systemd,
+D-Bus, udev) are installed to absolute paths because those subsystems do not
+search under `/usr/local`. Defaults can be overridden:
+`-DSYSTEMD_UNIT_DIR=...`, `-DDBUS_SYSTEM_POLICY_DIR=...`, `-DUDEV_RULES_DIR=...`.
 
-Files installed:
+Files installed (with `-DCMAKE_INSTALL_PREFIX=/usr`):
 - `/usr/bin/ratatoskrd` -- daemon binary
 - `/usr/lib/systemd/system/ratatoskrd.service` -- systemd service
 - `/usr/share/dbus-1/system.d/org.ratatoskr.conf` -- D-Bus policy
 - `/usr/lib/udev/rules.d/90-ratatoskr.rules` -- udev rules
+
+## Uninstallation
+
+```bash
+sudo systemctl disable --now ratatoskrd
+sudo cmake --build build --target uninstall
+```
 
 ## Usage
 

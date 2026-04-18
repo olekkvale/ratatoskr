@@ -1,0 +1,25 @@
+# Uninstall script -- removes files listed in install_manifest.txt
+# Based on the canonical CMake FAQ uninstall snippet.
+
+set(MANIFEST "@CMAKE_CURRENT_BINARY_DIR@/install_manifest.txt")
+
+if(NOT EXISTS "${MANIFEST}")
+    message(FATAL_ERROR "Cannot find install manifest: ${MANIFEST}\n"
+                        "Run 'cmake --install build' first, then retry uninstall.")
+endif()
+
+file(STRINGS "${MANIFEST}" files)
+foreach(file ${files})
+    if(EXISTS "$ENV{DESTDIR}${file}" OR IS_SYMLINK "$ENV{DESTDIR}${file}")
+        message(STATUS "Removing: $ENV{DESTDIR}${file}")
+        execute_process(
+            COMMAND "@CMAKE_COMMAND@" -E rm -f "$ENV{DESTDIR}${file}"
+            RESULT_VARIABLE rm_result
+        )
+        if(NOT rm_result EQUAL 0)
+            message(WARNING "Failed to remove: $ENV{DESTDIR}${file}")
+        endif()
+    else()
+        message(STATUS "Not found (skipping): $ENV{DESTDIR}${file}")
+    endif()
+endforeach()

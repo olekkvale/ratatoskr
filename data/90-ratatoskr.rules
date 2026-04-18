@@ -1,5 +1,12 @@
-# Logitech A50 Gen 5 basestation
+# Ratatoskr hidraw permissions
+#
+# Grants seat-local users (uaccess) read/write on hidraw devices for supported
+# hardware. Keep entries in sync with drivers implemented in src/drivers/.
+
+# Logitech A50 Gen 5 basestation -- A50Gen5Driver
 KERNEL=="hidraw*", ATTRS{idVendor}=="046d", ATTRS{idProduct}=="0b1c", MODE="0660", TAG+="uaccess"
+
+# --- Planned support (no driver implemented yet; rules staged to avoid perms churn) ---
 
 # Keychron Link dongle (2.4 GHz)
 KERNEL=="hidraw*", ATTRS{idVendor}=="3434", ATTRS{idProduct}=="d030", MODE="0660", TAG+="uaccess"

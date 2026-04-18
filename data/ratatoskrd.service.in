@@ -6,7 +6,7 @@ Wants=dbus.service
 [Service]
 Type=dbus
 BusName=org.ratatoskr
-ExecStart=/usr/local/bin/ratatoskrd
+ExecStart=@CMAKE_INSTALL_FULL_BINDIR@/ratatoskrd
 Restart=on-failure
 RestartSec=5
 
