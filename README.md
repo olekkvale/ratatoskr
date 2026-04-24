@@ -8,7 +8,7 @@ Named after the squirrel that carries messages between worlds on Yggdrasil.
 
 ## Supported devices
 
-- **Logitech Astro A50 Gen 5** -- 24 GET + 15 SET + 6 real-time signals
+- **Logitech Astro A50 Gen 5** -- 25 GET + 15 SET + 6 real-time signals
 
 ### Planned (udev rules staged, driver not yet implemented)
 
@@ -82,65 +82,120 @@ dbus-monitor --system "type='signal',sender='org.ratatoskr'"
 
 ## D-Bus API
 
-### GET methods
+The API is grouped by feature area, mirroring the tabs in `ratatoskr-gui` and the
+Noctalia plugin: **Settings**, **Volume**, **Stream (Routing)**, and **EQ**.
+
+### Settings
+
+Device identity, power, battery, Bluetooth, idle behaviour, LED, and notifications.
+
+#### GET
 
 | Method | Return | Description |
 |--------|--------|-------------|
+| GetPower | int32 | 1=on, 0=off, -1=unknown (live query) |
 | GetBattery | (int32, bool) | Percent + charging |
 | GetBatteryPercent | int32 | Percent only |
 | GetBatteryCharging | int32 | 1=charging, 0=not |
-| GetVolume | int32 | 0-31 |
-| GetSidetone | int32 | 0-6 |
-| GetMicMute | bool | Flip-to-mute state |
-| GetChatmix | int32 | 0-12 (Voice to Game) |
 | GetDeviceName | string | "A50" |
 | GetSerialNumber | string | ASCII serial |
 | GetFirmwareVersion | string | "1.3.24 main" |
-| GetUptime | int32 | Base station uptime (seconds) |
-| GetNoiseGate | int32 | 0x01/0x02/0x04 |
-| GetSleepMode | int32 | 0/15/30/60 min |
-| GetNotificationSound | int32 | 0/1/2 |
-| GetLedBrightness | int32 | 0-100 |
-| GetBaseMac | string | BT MAC address |
-| GetBluetoothStatus | bool | Connected |
-| GetBluetoothName | string | BT device name |
-| GetBluetoothAddress | string | BT device MAC |
 | GetFirmwareShort | string | "1.3.24" |
 | GetDeviceInfo | string | HW ID + build date |
 | GetProtocolId | string | "ah v15" |
 | GetSerialMeta | string | Serial via metadata |
-| GetRouting | (i,b,i,b,i,b,i,b,i,b) | Stream routing: 5 channels × (vol, mute) |
+| GetUptime | int32 | Base station uptime (seconds) |
+| GetBaseMac | string | Base station BT MAC |
+| GetBluetoothStatus | bool | Connected |
+| GetBluetoothName | string | Connected BT device name |
+| GetBluetoothAddress | string | Connected BT device MAC |
+| GetSleepMode | int32 | 0/15/30/60 min |
+| GetNotificationSound | int32 | 0=None, 1=Minimal, 2=All |
+| GetLedBrightness | int32 | 0-100 |
 
-### SET methods
+#### SET
 
 | Method | Args | Description |
 |--------|------|-------------|
-| SetSidetone | int32 | 0-6 |
-| SetVolume | int32 | 0-21 |
-| SetMixamp | int32 | 0-12 |
-| SetEqualizerPreset | int32 | 0=Standard, 1=Gaming, 2=Media |
-| SetNoiseGate | int32 | 0=Home, 1=Night, 2=Tournament |
+| SetInactiveTime | int32 | 0/15/30/60 min (auto-sleep) |
 | SetNotificationSound | int32 | 0=None, 1=Minimal, 2=All |
 | SetLedBrightness | int32 | 0-100 |
-| SetInactiveTime | int32 | 0/15/30/60 min |
-| SetMicMute | bool | SW mute |
-| SetCustomEqualizer | int32, ay | Type + 50 bytes band data |
-| SetEqualizerActive | int32 | Preset number |
-| SaveEqualizerPreset | -- | Save to headset |
-| FactoryReset | string | Serial number (12 chars) |
 | StartBluetoothPairing | -- | Trigger BT search |
-| SetRouting | i,b,i,b,i,b,i,b,i,b | Stream routing: stream/mic/game/bt/voice × (vol, mute) |
+| FactoryReset | string | Serial number (12 chars) |
 
-### Signals
+#### Signals
 
 | Signal | Args | Trigger |
 |--------|------|---------|
 | BatteryChanged | int32, bool | Every 2-5 min |
-| VolumeChanged | int32 | Volume wheel |
-| MicMuteChanged | bool | Flip-to-mute |
-| MixampChanged | int32 | MixAmp dial |
-| PowerChanged | int32 | Power on/off |
+| PowerChanged | int32 | Power on/off (raw byte: 0x00=on, 0x05=off). Suppressed at startup -- fires only on actual state change |
 | BluetoothChanged | bool | BT connect/disconnect |
+
+### Volume
+
+Headset audio output, sidetone, microphone, and Game/Voice mix.
+
+#### GET
+
+| Method | Return | Description |
+|--------|--------|-------------|
+| GetVolume | int32 | 0-31 |
+| GetSidetone | int32 | 0-6 |
+| GetChatmix | int32 | 0-12 (Voice to Game) |
+| GetMicMute | bool | Flip-to-mute state |
+
+#### SET
+
+| Method | Args | Description |
+|--------|------|-------------|
+| SetVolume | int32 | 0-21 |
+| SetSidetone | int32 | 0-6 |
+| SetMixamp | int32 | 0-12 |
+| SetMicMute | bool | SW mute |
+
+#### Signals
+
+| Signal | Args | Trigger |
+|--------|------|---------|
+| VolumeChanged | int32 | Volume wheel |
+| MicMuteChanged | bool | Flip-to-mute lever |
+| MixampChanged | int32 | MixAmp dial |
+
+### Stream (Routing)
+
+Five-channel stream mixer: stream master + mic out + game + bluetooth + voice.
+
+#### GET
+
+| Method | Return | Description |
+|--------|--------|-------------|
+| GetRouting | (i,b,i,b,i,b,i,b,i,b) | 5 channels × (vol, mute) |
+
+#### SET
+
+| Method | Args | Description |
+|--------|------|-------------|
+| SetRouting | i,b,i,b,i,b,i,b,i,b | stream/mic/game/bt/voice × (vol, mute) |
+
+### EQ
+
+Headphone/microphone equalizer and noise gate.
+
+#### GET
+
+| Method | Return | Description |
+|--------|--------|-------------|
+| GetNoiseGate | int32 | 0x01=Home, 0x02=Night, 0x04=Tournament |
+
+#### SET
+
+| Method | Args | Description |
+|--------|------|-------------|
+| SetEqualizerPreset | int32 | 0=Standard, 1=Gaming, 2=Media |
+| SetCustomEqualizer | int32, ay | Type (0=mic, 1=headphone) + 50 bytes band data |
+| SetEqualizerActive | int32 | Preset number |
+| SaveEqualizerPreset | -- | Persist active EQ to headset |
+| SetNoiseGate | int32 | 0=Home, 1=Night, 2=Tournament |
 
 ## License
 
