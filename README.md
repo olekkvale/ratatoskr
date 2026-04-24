@@ -93,43 +93,43 @@ Device identity, power, battery, Bluetooth, idle behaviour, LED, and notificatio
 
 | Method | Return | Description |
 |--------|--------|-------------|
-| GetPower | int32 | 1=on, 0=off, -1=unknown (live query) |
+| GetBaseMac | string | Base station BT MAC |
 | GetBattery | (int32, bool) | Percent + charging |
-| GetBatteryPercent | int32 | Percent only |
 | GetBatteryCharging | int32 | 1=charging, 0=not |
-| GetDeviceName | string | "A50" |
-| GetSerialNumber | string | ASCII serial |
-| GetFirmwareVersion | string | "1.3.24 main" |
-| GetFirmwareShort | string | "1.3.24" |
+| GetBatteryPercent | int32 | Percent only |
+| GetBluetoothAddress | string | Connected BT device MAC |
+| GetBluetoothName | string | Connected BT device name |
+| GetBluetoothStatus | bool | Connected |
 | GetDeviceInfo | string | HW ID + build date |
+| GetDeviceName | string | "A50" |
+| GetFirmwareShort | string | "1.3.24" |
+| GetFirmwareVersion | string | "1.3.24 main" |
+| GetLedBrightness | int32 | 0-100 |
+| GetNotificationSound | int32 | 0=None, 1=Minimal, 2=All |
+| GetPower | int32 | 1=on, 0=off, -1=unknown (live query) |
 | GetProtocolId | string | "ah v15" |
 | GetSerialMeta | string | Serial via metadata |
-| GetUptime | int32 | Base station uptime (seconds) |
-| GetBaseMac | string | Base station BT MAC |
-| GetBluetoothStatus | bool | Connected |
-| GetBluetoothName | string | Connected BT device name |
-| GetBluetoothAddress | string | Connected BT device MAC |
+| GetSerialNumber | string | ASCII serial |
 | GetSleepMode | int32 | 0/15/30/60 min |
-| GetNotificationSound | int32 | 0=None, 1=Minimal, 2=All |
-| GetLedBrightness | int32 | 0-100 |
+| GetUptime | int32 | Base station uptime (seconds) |
 
 #### SET
 
 | Method | Args | Description |
 |--------|------|-------------|
-| SetInactiveTime | int32 | 0/15/30/60 min (auto-sleep) |
-| SetNotificationSound | int32 | 0=None, 1=Minimal, 2=All |
-| SetLedBrightness | int32 | 0-100 |
-| StartBluetoothPairing | -- | Trigger BT search |
 | FactoryReset | string | Serial number (12 chars) |
+| SetInactiveTime | int32 | 0/15/30/60 min (auto-sleep) |
+| SetLedBrightness | int32 | 0-100 |
+| SetNotificationSound | int32 | 0=None, 1=Minimal, 2=All |
+| StartBluetoothPairing | -- | Trigger BT search |
 
 #### Signals
 
 | Signal | Args | Trigger |
 |--------|------|---------|
 | BatteryChanged | int32, bool | Every 2-5 min |
-| PowerChanged | int32 | Power on/off (raw byte: 0x00=on, 0x05=off). Suppressed at startup -- fires only on actual state change |
 | BluetoothChanged | bool | BT connect/disconnect |
+| PowerChanged | int32 | Power on/off (raw byte: 0x00=on, 0x05=off). Suppressed at startup -- fires only on actual state change |
 
 ### Volume
 
@@ -139,27 +139,27 @@ Headset audio output, sidetone, microphone, and Game/Voice mix.
 
 | Method | Return | Description |
 |--------|--------|-------------|
-| GetVolume | int32 | 0-31 |
-| GetSidetone | int32 | 0-6 |
 | GetChatmix | int32 | 0-12 (Voice to Game) |
 | GetMicMute | bool | Flip-to-mute state |
+| GetSidetone | int32 | 0-6 |
+| GetVolume | int32 | 0-31 |
 
 #### SET
 
 | Method | Args | Description |
 |--------|------|-------------|
-| SetVolume | int32 | 0-21 |
-| SetSidetone | int32 | 0-6 |
-| SetMixamp | int32 | 0-12 |
 | SetMicMute | bool | SW mute |
+| SetMixamp | int32 | 0-12 |
+| SetSidetone | int32 | 0-6 |
+| SetVolume | int32 | 0-21 |
 
 #### Signals
 
 | Signal | Args | Trigger |
 |--------|------|---------|
-| VolumeChanged | int32 | Volume wheel |
 | MicMuteChanged | bool | Flip-to-mute lever |
 | MixampChanged | int32 | MixAmp dial |
+| VolumeChanged | int32 | Volume wheel |
 
 ### Stream (Routing)
 
@@ -191,10 +191,10 @@ Headphone/microphone equalizer and noise gate.
 
 | Method | Args | Description |
 |--------|------|-------------|
-| SetEqualizerPreset | int32 | 0=Standard, 1=Gaming, 2=Media |
+| SaveEqualizerPreset | -- | Persist active EQ to headset |
 | SetCustomEqualizer | int32, ay | Type (0=mic, 1=headphone) + 50 bytes band data |
 | SetEqualizerActive | int32 | Preset number |
-| SaveEqualizerPreset | -- | Persist active EQ to headset |
+| SetEqualizerPreset | int32 | 0=Standard, 1=Gaming, 2=Media |
 | SetNoiseGate | int32 | 0=Home, 1=Night, 2=Tournament |
 
 ## License
