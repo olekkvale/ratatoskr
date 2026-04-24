@@ -104,12 +104,18 @@ void A50Gen5Driver::handleSpontaneous(const uint8_t* data, size_t len) {
                 emitEvent(Event::EqChanged);
             }
             break;
-        case 0x12: // Power: raw byte[6]. 0x00=on (spontaneous), 0x05=off, 0x01-0x03 sub-states (Windows VM)
+        case 0x12: { // Power: raw byte[6]. 0x00=on (spontaneous), 0x05=off, 0x01-0x03 sub-states (Windows VM)
             // Stored raw to preserve PowerChanged signal semantics for existing clients.
             // GetPower normalizes to 1/0/-1 at read-time.
+            // Fire signal only on actual state change — suppresses spurious initial event
+            // at daemon startup that clients misinterpret as connect/disconnect flicker.
+            int prev = cache_.power.load();
             cache_.power.store(data[6]);
-            emitEvent(Event::Power);
+            if (prev != -1 && prev != data[6]) {
+                emitEvent(Event::Power);
+            }
             break;
+        }
         case 0x0e: // Bluetooth: byte[6]: 0x01=connected
             cache_.bt_connected.store(data[6]);
             emitEvent(Event::Bluetooth);
