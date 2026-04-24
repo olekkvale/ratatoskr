@@ -53,6 +53,7 @@ public:
     int getNotificationSound(HidDevice& device);
     int getLedBrightness(HidDevice& device);
     int getMicVolume(HidDevice& device);
+    int getPower(HidDevice& device);  // 1=on, 0=off, -1=unknown
     std::string getBaseMac(HidDevice& device);
     std::string getFirmwareShort(HidDevice& device);   // metadata 0x10
     std::string getDeviceInfo(HidDevice& device);      // metadata 0x03
@@ -99,7 +100,7 @@ public:
         std::atomic<int> mixamp{-1};        // 0-12
         std::atomic<int> hw_mic_muted{-1};   // hardware flip-to-mute: 0=on, 1=muted (spontan rapport)
         std::atomic<int> sw_mic_muted{-1};   // software mute: 0=unmute, 1=mute (0c 3b)
-        std::atomic<int> power{-1};         // 0x00=on, 0x05=off
+        std::atomic<int> power{-1};         // 1=on, 0=off, -1=unknown (normalized from byte[6])
         std::atomic<int> bt_connected{-1};  // 0=no, 1=yes
         std::atomic<uint32_t> eq_checksum{0}; // EQ state hash (cmd1=0x11)
     };
@@ -135,6 +136,7 @@ private:
     static constexpr std::array<uint8_t, 4> CMD_GET_LED       {0x03, 0x00, 0x0f, 0x0b};  // 0f 0b: byte[6] = 0-100
     static constexpr std::array<uint8_t, 4> CMD_GET_MIC_VOL   {0x03, 0x00, 0x0c, 0x2b};  // 0c 2b: byte[9] bit0 = HW flip-to-mute (0=muted, 1=on); upper bits = mic volume
     static constexpr std::array<uint8_t, 4> CMD_GET_BASE_MAC  {0x03, 0x00, 0x0b, 0x6b};  // 0b 6b: byte[6..11] = MAC
+    static constexpr std::array<uint8_t, 4> CMD_GET_POWER     {0x03, 0x00, 0x12, 0x6a};  // 12 6a: byte[6] = 0x05 off, else on (verified live + G HUB capture del8)
 
     // SET commands
     static constexpr std::array<uint8_t, 4> CMD_SET_SIDETONE      {0x06, 0x00, 0x09, 0x1b};

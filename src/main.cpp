@@ -184,6 +184,11 @@ static void exportDevice(sdbus::IConnection& conn, ManagedDevice& dev) {
                     if (!dev.connected) return "";
                     return a50->getBaseMac(dev.hid);
                 }),
+            sdbus::registerMethod("GetPower")
+                .implementedAs([&dev, a50]() -> int32_t {
+                    if (!dev.connected) return -1;
+                    return a50->getPower(dev.hid);
+                }),
             sdbus::registerMethod("GetFirmwareShort")
                 .implementedAs([&dev, a50]() -> std::string {
                     if (!dev.connected) return "";
