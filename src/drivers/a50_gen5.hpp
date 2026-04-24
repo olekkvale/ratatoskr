@@ -100,7 +100,7 @@ public:
         std::atomic<int> mixamp{-1};        // 0-12
         std::atomic<int> hw_mic_muted{-1};   // hardware flip-to-mute: 0=on, 1=muted (spontan rapport)
         std::atomic<int> sw_mic_muted{-1};   // software mute: 0=unmute, 1=mute (0c 3b)
-        std::atomic<int> power{-1};         // 1=on, 0=off, -1=unknown (normalized from byte[6])
+        std::atomic<int> power{-1};         // raw byte[6] from device (0x00=on, 0x05=off). getPower() normalizes to 1/0/-1.
         std::atomic<int> bt_connected{-1};  // 0=no, 1=yes
         std::atomic<uint32_t> eq_checksum{0}; // EQ state hash (cmd1=0x11)
     };

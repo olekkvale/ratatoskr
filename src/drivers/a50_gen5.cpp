@@ -104,8 +104,10 @@ void A50Gen5Driver::handleSpontaneous(const uint8_t* data, size_t len) {
                 emitEvent(Event::EqChanged);
             }
             break;
-        case 0x12: // Power: byte[6]: 0x05=off, otherwise on (0x00 spontaneous, 0x01-0x03 sub-states from Windows VM-captures)
-            cache_.power.store(data[6] == 0x05 ? 0 : 1);
+        case 0x12: // Power: raw byte[6]. 0x00=on (spontaneous), 0x05=off, 0x01-0x03 sub-states (Windows VM)
+            // Stored raw to preserve PowerChanged signal semantics for existing clients.
+            // GetPower normalizes to 1/0/-1 at read-time.
+            cache_.power.store(data[6]);
             emitEvent(Event::Power);
             break;
         case 0x0e: // Bluetooth: byte[6]: 0x01=connected
@@ -414,10 +416,12 @@ int A50Gen5Driver::getPower(HidDevice& device) {
                        response.data(), response.size())) {
         // Valid response has length-byte (response[2]) >= 4. Length 3 means echo only.
         if (response[2] >= 4) {
-            cache_.power.store(response[6] == 0x05 ? 0 : 1);
+            cache_.power.store(response[6]);  // raw byte
         }
     }
-    return cache_.power.load();
+    int raw = cache_.power.load();
+    if (raw < 0) return -1;
+    return raw == 0x05 ? 0 : 1;
 }
 
 // ========================================================================
