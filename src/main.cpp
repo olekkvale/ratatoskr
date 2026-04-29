@@ -227,6 +227,25 @@ static void exportDevice(sdbus::IConnection& conn, ManagedDevice& dev) {
                 .implementedAs([&dev, a50]() -> bool {
                     return dev.connected && a50->saveEqualizerPreset(dev.hid);
                 }),
+            sdbus::registerMethod("GetActiveEqualizerData")
+                .implementedAs([&dev, a50](int32_t type) -> std::vector<uint8_t> {
+                    if (!dev.connected) return {};
+                    auto data = a50->getActiveEqualizerData(dev.hid, static_cast<uint8_t>(type));
+                    return std::vector<uint8_t>(data.begin(), data.end());
+                }),
+            sdbus::registerMethod("GetEqualizerPresetData")
+                .implementedAs([&dev, a50](int32_t type, int32_t index) -> std::vector<uint8_t> {
+                    if (!dev.connected) return {};
+                    auto data = a50->getEqualizerPresetData(dev.hid,
+                                                            static_cast<uint8_t>(type),
+                                                            static_cast<uint8_t>(index));
+                    return std::vector<uint8_t>(data.begin(), data.end());
+                }),
+            sdbus::registerMethod("GetEqualizerPresetCount")
+                .implementedAs([&dev, a50](int32_t type) -> int32_t {
+                    if (!dev.connected) return -1;
+                    return a50->getEqualizerPresetCount(dev.hid, static_cast<uint8_t>(type));
+                }),
             sdbus::registerMethod("FactoryReset")
                 .implementedAs([&dev, a50](std::string serial) -> bool {
                     return dev.connected && a50->factoryReset(dev.hid, serial);
@@ -276,7 +295,9 @@ static void exportDevice(sdbus::IConnection& conn, ManagedDevice& dev) {
         sdbus::registerSignal("PowerChanged")
             .withParameters<int32_t>(),
         sdbus::registerSignal("BluetoothChanged")
-            .withParameters<bool>()
+            .withParameters<bool>(),
+        sdbus::registerSignal("EqualizerChanged")
+            .withParameters<uint32_t>()
     ).forInterface(iface);
 
     // Wire event callback to D-Bus signals
@@ -315,6 +336,11 @@ static void exportDevice(sdbus::IConnection& conn, ManagedDevice& dev) {
                     obj_ptr->emitSignal("BluetoothChanged")
                         .onInterface(iface)
                         .withArguments(c.bt_connected.load() != 0);
+                    break;
+                case A50Gen5Driver::Event::EqChanged:
+                    obj_ptr->emitSignal("EqualizerChanged")
+                        .onInterface(iface)
+                        .withArguments(c.eq_checksum.load());
                     break;
                 default:
                     break;

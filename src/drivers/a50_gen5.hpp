@@ -80,6 +80,18 @@ public:
     bool factoryReset(HidDevice& device, const std::string& serial);
     bool startBluetoothPairing(HidDevice& device);
 
+    /// Active EQ data for given type (0=mic, 1=hp). Returns 50-byte band data.
+    /// Lazy-fetched from device on first call; cached and invalidated by spontaneous
+    /// 0x11 reports or local SET methods. Empty array on error/not-connected.
+    std::array<uint8_t, 50> getActiveEqualizerData(HidDevice& device, uint8_t type);
+
+    /// Built-in preset EQ data for given type (0=mic, 1=hp) and index (0..count-1).
+    /// Built-ins are static — fetched once per session.
+    std::array<uint8_t, 50> getEqualizerPresetData(HidDevice& device, uint8_t type, uint8_t index);
+
+    /// Number of built-in presets per type. Returns 3 in firmware 1.3.24.
+    int getEqualizerPresetCount(HidDevice& device, uint8_t type);
+
     /// Stream routing: 5 channels (stream master + mic out + game + bluetooth + voice)
     /// Each channel: volume 0-32, mute 0/1
     struct RoutingConfig {
@@ -137,6 +149,9 @@ private:
     static constexpr std::array<uint8_t, 4> CMD_GET_MIC_VOL   {0x03, 0x00, 0x0c, 0x2b};  // 0c 2b: byte[9] bit0 = HW flip-to-mute (0=muted, 1=on); upper bits = mic volume
     static constexpr std::array<uint8_t, 4> CMD_GET_BASE_MAC  {0x03, 0x00, 0x0b, 0x6b};  // 0b 6b: byte[6..11] = MAC
     static constexpr std::array<uint8_t, 4> CMD_GET_POWER     {0x03, 0x00, 0x12, 0x6a};  // 12 6a: byte[6] = 0x05 off, else on (verified live + G HUB capture del8)
+    static constexpr std::array<uint8_t, 4> CMD_GET_EQ_ACTIVE {0x05, 0x00, 0x0d, 0x1a};  // 0d 1a (type, 0x03): 50 bytes active EQ data
+    static constexpr std::array<uint8_t, 4> CMD_GET_EQ_PRESET {0x05, 0x00, 0x0d, 0x5a};  // 0d 5a (type, index): 50 bytes built-in preset data
+    static constexpr std::array<uint8_t, 4> CMD_GET_EQ_COUNT  {0x04, 0x00, 0x0d, 0x3a};  // 0d 3a (type): byte[6] = built-in preset count
 
     // SET commands
     static constexpr std::array<uint8_t, 4> CMD_SET_SIDETONE      {0x06, 0x00, 0x09, 0x1b};
@@ -160,6 +175,23 @@ private:
     Cache cache_;
     EventCallback event_cb_;
     mutable std::mutex hid_mutex_;
+
+    /// EQ data cache (separate mutex — never held while doing USB I/O).
+    /// active_eq_[0]=mic, [1]=hp. builtin_eq_[type][index] for built-ins (3 per type).
+    struct EqCacheEntry {
+        bool valid = false;
+        std::array<uint8_t, 50> data{};
+    };
+    mutable std::mutex eq_cache_mutex_;
+    EqCacheEntry active_eq_[2];
+    EqCacheEntry builtin_eq_[2][3];
+    int builtin_count_[2] = {-1, -1};  // cached preset count per type
+    /// Timestamp of the last self-initiated EQ SET. Used to suppress the
+    /// 0x11 echo that the device sends back to us — without suppression the
+    /// echo invalidates the cache we just populated, forcing a re-fetch.
+    /// Atomic so the listener thread can read without holding eq_cache_mutex_.
+    std::atomic<int64_t> last_eq_set_ms_{0};
+
     std::thread listener_thread_;
     std::atomic<bool> listener_running_{false};
     std::atomic<bool> listener_paused_{false};  // pause during sendAndReceive

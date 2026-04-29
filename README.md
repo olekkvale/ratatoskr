@@ -185,7 +185,10 @@ Headphone/microphone equalizer and noise gate.
 
 | Method | Return | Description |
 |--------|--------|-------------|
-| GetNoiseGate | int32 | 0x01=Home, 0x02=Night, 0x04=Tournament |
+| GetActiveEqualizerData | int32 → ay | Active EQ data for type (0=mic, 1=hp). 50 bytes in canonical SET-compatible layout. Lazy-cached, invalidated by external changes. |
+| GetEqualizerPresetCount | int32 → int32 | Number of built-in presets per type (3 in firmware 1.3.24). |
+| GetEqualizerPresetData | int32, int32 → ay | Built-in preset EQ data (type, index 0..count-1). 50 bytes, cached for session. |
+| GetNoiseGate | int32 | 0x00=Disabled, 0x01=Home, 0x02=Night, 0x04=Tournament (device-internal 0x40 normalized to 0x00) |
 
 #### SET
 
@@ -195,7 +198,13 @@ Headphone/microphone equalizer and noise gate.
 | SetCustomEqualizer | int32, ay | Type (0=mic, 1=headphone) + 50 bytes band data |
 | SetEqualizerActive | int32 | Preset number |
 | SetEqualizerPreset | int32 | 0=Standard, 1=Gaming, 2=Media |
-| SetNoiseGate | int32 | 0=Home, 1=Night, 2=Tournament |
+| SetNoiseGate | int32 | 0=Home, 1=Night, 2=Tournament, 3=Disabled |
+
+#### Signals
+
+| Signal | Args | Description |
+|--------|------|-------------|
+| EqualizerChanged | uint32 | Fires whenever the device's EQ checksum changes (own SET, external G HUB session, etc.). Argument is the firmware checksum hash. Subscribers should re-fetch via GetActiveEqualizerData — the call is cache-warm after a self-initiated SET so it's free. |
 
 ## License
 

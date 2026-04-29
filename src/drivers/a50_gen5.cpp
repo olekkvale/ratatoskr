@@ -1,7 +1,15 @@
 #include "a50_gen5.hpp"
 #include "../hid_device.hpp"
+#include <chrono>
 #include <cstring>
 #include <algorithm>
+
+namespace {
+inline int64_t now_ms() {
+    using namespace std::chrono;
+    return duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
+}
+} // namespace
 
 namespace ratatoskr {
 
@@ -101,6 +109,18 @@ void A50Gen5Driver::handleSpontaneous(const uint8_t* data, size_t len) {
                 uint32_t hash = (data[6] << 24) | (data[7] << 16) |
                                 (data[8] << 8) | data[9];
                 cache_.eq_checksum.store(hash);
+                // The device echoes 0x11 after every EQ change, including ones
+                // we just SET ourselves. Suppress *cache invalidation* if the
+                // echo arrives within 500 ms of our own SET — the cache was
+                // populated directly with the SET bytes and is still correct.
+                // EqChanged is still emitted so other clients re-sync (their
+                // getActiveEqualizerData hits the warm cache, no USB query).
+                int64_t since_set = now_ms() - last_eq_set_ms_.load();
+                if (since_set >= 500) {
+                    std::lock_guard<std::mutex> lock(eq_cache_mutex_);
+                    active_eq_[0].valid = false;
+                    active_eq_[1].valid = false;
+                }
                 emitEvent(Event::EqChanged);
             }
             break;
@@ -358,7 +378,10 @@ int A50Gen5Driver::getNoiseGate(HidDevice& device) {
                         response.data(), response.size())) {
         return -1;
     }
-    // 14 1b: byte[6] = 0x01=Home, 0x02=Night, 0x04=Tournament
+    // 14 1b: byte[6] = 0x01=Home, 0x02=Night, 0x04=Tournament, 0x40=Disabled (intern)
+    // Normalize 0x40 to 0x00 (the byte SetNoiseGate sends for Disabled) so
+    // clients can compare against a single canonical value per state.
+    if (response[6] == 0x40) return 0x00;
     return response[6];
 }
 
@@ -602,12 +625,13 @@ bool A50Gen5Driver::setVolume(HidDevice& device, uint8_t volume) {
 }
 
 bool A50Gen5Driver::setNoiseGate(HidDevice& device, uint8_t mode) {
-    // 0x01=Home, 0x02=Night, 0x04=Tournament
+    // 0x00=Disabled, 0x01=Home, 0x02=Night, 0x04=Tournament
     uint8_t validated;
     switch (mode) {
         case 0: validated = 0x01; break; // Home
         case 1: validated = 0x02; break; // Night
         case 2: validated = 0x04; break; // Tournament
+        case 3: validated = 0x00; break; // Disabled
         default: return false;
     }
 
@@ -652,7 +676,7 @@ bool A50Gen5Driver::setCustomEqualizer(HidDevice& device, uint8_t type,
                                         const uint8_t* band_data, size_t band_len) {
     // 0d 2c: byte[6]=type, byte[7]=0x03, byte[8]=0x00 (spacer)
     // byte[9..58] = 10 bands × 5 bytes [freq_hi, freq_lo, Q, 0x00, gain]
-    if (band_len != 50) return false;
+    if (band_len != 50 || type > 1) return false;
 
     std::array<uint8_t, 53> data{};
     data[0] = type;   // 0x00=mic, 0x01=headphone
@@ -660,20 +684,131 @@ bool A50Gen5Driver::setCustomEqualizer(HidDevice& device, uint8_t type,
     data[2] = 0x00;   // spacer (matches G HUB frame format)
     std::memcpy(&data[3], band_data, 50);
 
-    return sendCommand(device, CMD_SET_CUSTOM_EQ.data(), CMD_SET_CUSTOM_EQ.size(),
-                       data.data(), data.size());
+    bool ok = sendCommand(device, CMD_SET_CUSTOM_EQ.data(), CMD_SET_CUSTOM_EQ.size(),
+                          data.data(), data.size());
+    if (ok) {
+        // Populate cache directly — avoids round-trip device query for state we just set.
+        std::lock_guard<std::mutex> lock(eq_cache_mutex_);
+        std::memcpy(active_eq_[type].data.data(), band_data, 50);
+        active_eq_[type].valid = true;
+        // Stamp self-SET so the 0x11 echo doesn't immediately invalidate this entry.
+        last_eq_set_ms_.store(now_ms());
+    }
+    return ok;
 }
 
 bool A50Gen5Driver::setEqualizerActive(HidDevice& device, uint8_t preset) {
     // 0d 5b: byte[6]=preset-nr
     std::array<uint8_t, 1> data{preset};
-    return sendCommand(device, CMD_SET_EQ_ACTIVE.data(), CMD_SET_EQ_ACTIVE.size(),
-                       data.data(), data.size());
+    bool ok = sendCommand(device, CMD_SET_EQ_ACTIVE.data(), CMD_SET_EQ_ACTIVE.size(),
+                          data.data(), data.size());
+    if (ok) {
+        // Active EQ now reflects a different preset — invalidate both types so
+        // the next GET pulls fresh data. Stamp self-SET so the 0x11 echo
+        // doesn't fire EqChanged for our own action.
+        std::lock_guard<std::mutex> lock(eq_cache_mutex_);
+        active_eq_[0].valid = false;
+        active_eq_[1].valid = false;
+        last_eq_set_ms_.store(now_ms());
+    }
+    return ok;
 }
 
 bool A50Gen5Driver::saveEqualizerPreset(HidDevice& device) {
     // 0d 1b: save active EQ to headset
     return sendCommand(device, CMD_SET_EQ_SAVE.data(), CMD_SET_EQ_SAVE.size());
+}
+
+/// Convert 50 bytes from GET response wire format to SET-compatible canonical format.
+/// Wire (GET) per slot:  [freq_lo(N), Q(N), pad=0, gain(N), freq_hi(N+1)]   (cyclic-shifted freq_hi)
+/// Canonical per band:   [freq_hi(N), freq_lo(N), Q(N), 0x00, gain(N)]      (matches setCustomEqualizer)
+/// freq_hi_0 comes from the byte BEFORE the slot data (response[7] for 0d 1a, implicit 0 for 0d 5a).
+static std::array<uint8_t, 50> normalizeEqResponse(uint8_t freq_hi_0, const uint8_t* slots) {
+    std::array<uint8_t, 50> out{};
+    uint8_t freq_hi = freq_hi_0;
+    for (int b = 0; b < 10; b++) {
+        const int src = b * 5;
+        const int dst = b * 5;
+        out[dst + 0] = freq_hi;          // freq_hi(N) — carried over from previous slot (or freq_hi_0)
+        out[dst + 1] = slots[src + 0];   // freq_lo(N)
+        out[dst + 2] = slots[src + 1];   // Q(N)
+        out[dst + 3] = 0x00;             // spacer
+        out[dst + 4] = slots[src + 3];   // gain(N)
+        freq_hi = slots[src + 4];        // store freq_hi for next band
+    }
+    return out;
+}
+
+std::array<uint8_t, 50> A50Gen5Driver::getActiveEqualizerData(HidDevice& device, uint8_t type) {
+    if (type > 1) return {};
+    {
+        std::lock_guard<std::mutex> lock(eq_cache_mutex_);
+        if (active_eq_[type].valid) return active_eq_[type].data;
+    }
+    // 0d 1a (type, 0x03): byte[7]=0x03 is constant marker for "active EQ"
+    // (NOT a preset index). Response: [02 0c 36 00 0d 1a type 0x00 <50 bytes>].
+    // Bands start at byte[8]; per-band wire format differs from SET (see normalizeEqResponse).
+    std::array<uint8_t, 2> args{type, 0x03};
+    std::array<uint8_t, MSG_SIZE> response{};
+    if (!sendAndReceive(device, CMD_GET_EQ_ACTIVE.data(), CMD_GET_EQ_ACTIVE.size(),
+                        response.data(), response.size(), args.data(), args.size())) {
+        return {};
+    }
+    // Note: response[6] is NOT a type echo for 0d 1a — it's an extra byte (always 0x00 in observed
+    // captures). The actual type information is implicit (we requested it). Skip type validation.
+    auto out = normalizeEqResponse(/*freq_hi_0=*/response[7], /*slots=*/&response[8]);
+    {
+        std::lock_guard<std::mutex> lock(eq_cache_mutex_);
+        active_eq_[type].data = out;
+        active_eq_[type].valid = true;
+    }
+    return out;
+}
+
+std::array<uint8_t, 50> A50Gen5Driver::getEqualizerPresetData(HidDevice& device, uint8_t type, uint8_t index) {
+    if (type > 1 || index > 2) return {};
+    {
+        std::lock_guard<std::mutex> lock(eq_cache_mutex_);
+        if (builtin_eq_[type][index].valid) return builtin_eq_[type][index].data;
+    }
+    // 0d 5a (type, index): response [02 0c 35 00 0d 5a type <50 bytes>].
+    // Bands start at byte[7] (no 0x00 padding byte that 0d 1a has).
+    std::array<uint8_t, 2> args{type, index};
+    std::array<uint8_t, MSG_SIZE> response{};
+    if (!sendAndReceive(device, CMD_GET_EQ_PRESET.data(), CMD_GET_EQ_PRESET.size(),
+                        response.data(), response.size(), args.data(), args.size())) {
+        return {};
+    }
+    // 0d 5a response: byte[6] is implicit freq_hi(0) (always 0 for built-in presets where
+    // band 0 freq < 256 Hz). Bands at byte[7..56].
+    auto out = normalizeEqResponse(/*freq_hi_0=*/response[6], /*slots=*/&response[7]);
+    {
+        std::lock_guard<std::mutex> lock(eq_cache_mutex_);
+        builtin_eq_[type][index].data = out;
+        builtin_eq_[type][index].valid = true;
+    }
+    return out;
+}
+
+int A50Gen5Driver::getEqualizerPresetCount(HidDevice& device, uint8_t type) {
+    if (type > 1) return -1;
+    {
+        std::lock_guard<std::mutex> lock(eq_cache_mutex_);
+        if (builtin_count_[type] >= 0) return builtin_count_[type];
+    }
+    // 0d 3a (type): response byte[6] = preset count (3 in firmware 1.3.24).
+    std::array<uint8_t, 1> args{type};
+    std::array<uint8_t, MSG_SIZE> response{};
+    if (!sendAndReceive(device, CMD_GET_EQ_COUNT.data(), CMD_GET_EQ_COUNT.size(),
+                        response.data(), response.size(), args.data(), args.size())) {
+        return -1;
+    }
+    int count = response[6];
+    {
+        std::lock_guard<std::mutex> lock(eq_cache_mutex_);
+        builtin_count_[type] = count;
+    }
+    return count;
 }
 
 bool A50Gen5Driver::factoryReset(HidDevice& device, const std::string& serial) {
