@@ -650,7 +650,7 @@ bool A50Gen5Driver::setMicMute(HidDevice& device, bool mute) {
 
 bool A50Gen5Driver::setCustomEqualizer(HidDevice& device, uint8_t type,
                                         const uint8_t* band_data, size_t band_len) {
-    // 0d 2b: byte[6]=type, byte[7]=0x03, byte[8]=0x00 (spacer)
+    // 0d 2c: byte[6]=type, byte[7]=0x03, byte[8]=0x00 (spacer)
     // byte[9..58] = 10 bands × 5 bytes [freq_hi, freq_lo, Q, 0x00, gain]
     if (band_len != 50) return false;
 

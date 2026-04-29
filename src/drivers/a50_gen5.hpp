@@ -143,13 +143,13 @@ private:
     static constexpr std::array<uint8_t, 4> CMD_SET_LED           {0x04, 0x00, 0x0f, 0x1b};
     static constexpr std::array<uint8_t, 4> CMD_SET_SLEEP         {0x05, 0x00, 0x07, 0x1b};
     static constexpr std::array<uint8_t, 4> CMD_SET_NOTIFICATIONS {0x04, 0x00, 0x10, 0x1b};
-    static constexpr std::array<uint8_t, 4> CMD_SET_EQ            {0x38, 0x00, 0x0d, 0x2b};
+    static constexpr std::array<uint8_t, 4> CMD_SET_EQ            {0x38, 0x00, 0x0d, 0x2c};
     static constexpr std::array<uint8_t, 4> CMD_SET_MIC_VOL       {0x13, 0x00, 0x0c, 0x6b};
     static constexpr std::array<uint8_t, 4> CMD_SET_VOLUME        {0x05, 0x00, 0x08, 0x1b};
     static constexpr std::array<uint8_t, 4> CMD_SET_NOISE_GATE    {0x04, 0x00, 0x14, 0x2b};
     static constexpr std::array<uint8_t, 4> CMD_SET_MIXAMP        {0x06, 0x00, 0x0a, 0x1b};
     static constexpr std::array<uint8_t, 4> CMD_SET_MIC_MUTE      {0x13, 0x00, 0x0c, 0x6b};  // byte[8]=0x00 unmute, 0x01 mute
-    static constexpr std::array<uint8_t, 4> CMD_SET_CUSTOM_EQ     {0x38, 0x00, 0x0d, 0x2b};  // 56 bytes: type + 10 bands
+    static constexpr std::array<uint8_t, 4> CMD_SET_CUSTOM_EQ     {0x38, 0x00, 0x0d, 0x2c};  // 56 bytes: type + 10 bands
     static constexpr std::array<uint8_t, 4> CMD_SET_EQ_ACTIVE     {0x05, 0x00, 0x0d, 0x5b};  // byte[6]=preset-nr
     static constexpr std::array<uint8_t, 4> CMD_SET_EQ_SAVE       {0x05, 0x00, 0x0d, 0x1b};  // save active EQ
     static constexpr std::array<uint8_t, 4> CMD_SET_FACTORY_RESET {0x10, 0x00, 0x04, 0x4b};  // byte[6..17]=serial
